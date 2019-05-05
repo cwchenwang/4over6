@@ -1,6 +1,10 @@
-#include <stdlib.h>
+#include <stdio.h>
+#include <stdlib.h> //exit
+#include <unistd.h> //close
+#include <string.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
+#include <net/if.h> //if_nametoindex
 #include <sys/socket.h>
 
 #define NUM_USERS 100
@@ -13,6 +17,7 @@
 
 //Server info
 #define SERVER_PORT 5000
+#define CLIENT_QUEUE_LEN 10
 
 typedef struct {
 	int length;
