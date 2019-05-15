@@ -16,7 +16,7 @@
 #define KEEPALIVE 104
 
 //Server info
-#define SERVER_PORT 5000
+#define SERVER_PORT 5678
 #define CLIENT_QUEUE_LEN 10
 
 typedef struct {

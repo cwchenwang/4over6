@@ -70,6 +70,11 @@ void handle_connection() {
 	}
 }
 
+void create_tun() {
+
+
+}
+
 int main() {
 	if(init_server() < 0) {
 		printf("server init failed\n");
