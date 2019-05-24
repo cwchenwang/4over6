@@ -1,35 +1,55 @@
+#include <thread>
 #include <stdio.h>
-#include <stdlib.h> //exit
-#include <unistd.h> //close
+#include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <net/if.h> //if_nametoindex
+#include <signal.h>
+#include <unistd.h>
+#include <sys/epoll.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <errno.h>
+#include <unistd.h>
+#include <netdb.h>
+#include <assert.h>
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#include <linux/ip.h>
+#include <linux/if.h>
+#include <linux/if_tun.h>
 
-#define NUM_USERS 100
-//Message type
-#define IP_REQUEST 100
-#define IP_RESPONSE 101
-#define NET_REQUEST 102
-#define NET_RESPONSE 103
-#define KEEPALIVE 104
+#define IP_REQUEST    100
+#define IP_RESPONSE   101
+#define NET_REQUEST   102
+#define NET_RESPONSE  103
+#define KEEPALIVE     104
+#define SERVER_PORT   5678
 
-//Server info
-#define SERVER_PORT 5678
-#define CLIENT_QUEUE_LEN 10
+#define MAX_EPOLL_EVENT 100
+#define MAX_USER        10
 
-typedef struct {
-	int length;
-	char type;
-	char data[4096];
-} Msg;
+#define MAX_DATA_LEN  4096
 
-typedef struct user_info_table {
-	int fd; //socket descriptor
-	int cnt; //set to 20 when a user connects, decrease by 1 for every second. Sent keepalive packet when is 0
-	int secs; //the last time receives keepalive
-	struct in_addr v4addr;
-	struct in6_addr v6addr;
-	struct user_info_table* next;
-} user_info_table;
+struct Msg {
+    int length;
+    char type;
+    char data[MAX_DATA_LEN];
+};
+
+#define MSG_HEADER_SIZE   5
+#define MSG_DATA_SIZE(msg)  (msg.length-MSG_HEADER_SIZE)
+#define IP_TO_UINT(a, b, c, d) (((a) << 24) | ((b) << 16) | ((c) << 8) | (d))
+#define IP_POOL_START IP_TO_UINT(10, 0, 0, 100)
+
+struct user_info {
+    int fd;
+    int count;
+    int secs;
+    struct in_addr v4addr;
+    struct in6_addr v6addr;
+} user_info_table[MAX_USER];

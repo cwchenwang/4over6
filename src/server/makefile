@@ -1,7 +1,6 @@
-server: 
-	gcc server.c -o server -pthread -std=c99
-run:
-	./server
-
+server:
+	g++ server.cpp -o server -pthread -std=c++11
 clean:
 	rm server
+run:
+	sudo ./server
