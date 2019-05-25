@@ -95,14 +95,14 @@ void process_packet_to_tun(int fd) {
     }
 }
 
-int process_packet_from_client(int fd) {
+int process_packet_from_client(int fd, int user) {
     if(fd < 0) return -1;
-    int user = find_user_by_fd(fd);
-    if(user < 0 || user >= MAX_USER) {
-        printf("Error receving a packet from unknown user");
-        return -1;
-    }
-    printf("Processing packet from user %d, fd %d\n", user, fd);
+    // int user = find_user_by_fd(fd);
+    // if(user < 0 || user >= MAX_USER) {
+    //     printf("Error receving a packet from unknown user");
+    //     return -1;
+    // }
+    // printf("Processing packet from user %d, fd %d\n", user, fd);
     struct Msg msg;
     int n = sock_receive(fd, (char*)&msg, MSG_HEADER_SIZE);
     if( n <= 0 ){
@@ -236,7 +236,7 @@ void init_tun() {
     event_add(tun_fd);
 }
 
-void* keepalive_thread_func(void*) {
+void* keepalive_func(void*) {
     pthread_mutex_lock(&mutex);
     while(true) {
         pthread_mutex_unlock(&mutex);
@@ -295,12 +295,13 @@ int main(){
     int nfds, connfd, ret;
 
     pthread_t keepalive_thread;
-    ret = pthread_create(&keepalive_thread, NULL, keepalive_thread_func, NULL);
+    ret = pthread_create(&keepalive_thread, NULL, keepalive_func, NULL);
     printf("Keep alive thread start\n");
 
     //init user_info_table
     for (int i = 0; i < MAX_USER; i++) {
-        user_info_table[i].v4addr.s_addr = htonl(IP_POOL_START + i);
+        in_addr_t client_start = inet_addr(CLIENT_START_ADDR);
+        user_info_table[i].v4addr.s_addr = htonl(client_start + i);
         user_info_table[i].fd = -1;
     }
 
@@ -348,7 +349,15 @@ int main(){
                     process_packet_to_tun(client_fd);
                 } else if(events[i].events & EPOLLIN) {
                     //only for one client
-                    process_packet_from_client(client_fd);
+                    int fd = events[i].data.fd;
+                    int user = 0;
+                    user = find_user_by_fd(fd);
+                    if(user < 0 || user >= MAX_USER) {
+                        printf("Error receving a packet from unknown user");
+                        continue;
+                    }
+                    printf("Processing packet from user %d, fd %d\n", user, fd);
+                    process_packet_from_client(fd, user);
                 }
             }
         }
