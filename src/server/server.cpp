@@ -6,6 +6,7 @@ int client_fd = -1;
 int listenfd = -1; //for server to listen
 in_addr tun_addr;
 pthread_mutex_t mutex;
+pthread_mutex_t sock_lock;
 
 void setnonblocking(int sock) {
     int opts;
@@ -41,7 +42,11 @@ int ip_response(int fd) {
     msg.type = IP_RESPONSE;
     sprintf(msg.data ,"%s 0.0.0.0 202.38.120.242 8.8.8.8 202.106.0.20 ", inet_ntoa(tun_addr));
     msg.length = strlen(msg.data) + MSG_HEADER_SIZE;
-    return send(fd, &msg, msg.length, 0);
+    int ret;
+    pthread_mutex_lock(&sock_lock);
+    ret = send(fd, &msg, msg.length, 0);
+    pthread_mutex_unlock(&sock_lock);
+    return ret;
 }
 
 int send_keepalive(int fd) {
@@ -49,33 +54,79 @@ int send_keepalive(int fd) {
     Msg msg;
     msg.type = KEEPALIVE;
     msg.length = MSG_HEADER_SIZE;
-    return send(fd, &msg, msg.length, 0);
+    int ret;
+    pthread_mutex_lock(&sock_lock);
+    ret = send(fd, &msg, msg.length, 0);
+    pthread_mutex_unlock(&sock_lock);
+    return ret;
 }
 
 int sock_receive(int fd, char* buff, int n) {
     int left = n;
+    pthread_mutex_lock(&sock_lock);
     while(left > 0) {
-        ssize_t recvn = read(fd, buff + n - left, left);
+        ssize_t recvn = recv(fd, buff + n - left, left, 0);
         if ( recvn == -1 ) {
-            usleep(100);
-            continue;
+            return -1;
+            // usleep(100);
+            // continue;
         } else if( recvn == 0 ) {
             return 0;
         } else if( recvn > 0 ) {
-            left-=recvn;
+            left -= recvn;
         } else {
             perror("Recv error");
             return -1;
         }
     }
+    pthread_mutex_unlock(&sock_lock);
     return n;
 }
+
+// int sock_receive_wrong(int fd, char* buff, int n) {
+//     int header_size = sizeof(int);
+//     int cur = 0, len = 0;
+//     int recv_len = 0;
+//     while (cur < header_size) {
+//         len = recv(fd, buff, 1, 0);
+//         if (len == -1) {
+//             printf("sock_receive() connect failed. len == -1\n");
+//             continue;
+//         } else if (len == 0) {
+//             printf("sock_receive() len == 0");
+//         } else if (len > 0) {
+//             cur += len;
+//         } else {
+//             printf("sock_receive() unknown error.\n");
+//         }
+//     }
+//     recv_len = cur;
+//     int size = *(int *)buff - sizeof(int);
+//     printf("size=%d\n", *(int*)buff);
+//     assert(size > 0);
+//     cur = 0;
+//     while (cur < size) {
+//         len = recv(fd, buff + sizeof(int) + cur, 1, 0);
+//        if (len == -1) {
+//             printf("sock_receive() connect failed. len == -1\n");
+//             continue;
+//         } else if (len == 0) {
+//             printf("sock_receive() len == 0");
+//         } else if (len > 0) {
+//             cur += len;
+//         } else {
+//             printf("sock_receive() unknown error.\n");
+//         } 
+//     }
+//     assert(recv_len + cur == *(int *)buff);
+//     return recv_len + cur;
+// }
 
 void process_packet_to_tun(int fd) {
     struct Msg msg;
     printf("Processing packet to tun: ");
-    int ret = read(tun_fd, msg.data, MAX_DATA_LEN);
-    if( ret <= 0 ){
+    int ret = read(tun_fd, msg.data, 1500);
+    if( ret <= 0 ) {
         printf("Error processing tun packet\n");
         return;
     }
@@ -87,11 +138,18 @@ void process_packet_to_tun(int fd) {
     inet_ntop(AF_INET, &hdr->daddr, daddr, sizeof(daddr));
     printf("A packet from %s to %s\n", saddr, daddr);
     //set the packet to client
-    if(hdr->version == 4 && hdr->daddr == tun_addr.s_addr) {
+    if(hdr->version == 4 && hdr->daddr == tun_addr.s_addr && fd > 0) {
         msg.type = NET_RESPONSE;
         msg.length = ret;
-        send(fd, (void*)&msg, msg.length, 0);
-        printf("Send back NET_REPONSE packet\n");
+        pthread_mutex_lock(&sock_lock);
+        if( (send(fd, &msg, msg.length, 0)) < 0) {
+            pthread_mutex_unlock(&sock_lock);
+            printf("Send to client failed\n");
+            client_fd = -1;
+            return;
+        }
+        pthread_mutex_unlock(&sock_lock);
+        printf("Send back NET_REPONSE packet, len=%d\n", ret);
     }
 }
 
@@ -346,6 +404,10 @@ int main(){
                 printf("A new user %s: %d\n", str_addr, ntohs(clientaddr.sin6_port));
             } else { 
                 if(events[i].data.fd == tun_fd) {
+                    // if(client_fd < 0) {
+                    //     printf("\033[31m Client is disconnected\n\033[0m");
+                    //     continue;
+                    // }
                     process_packet_to_tun(client_fd);
                 } else if(events[i].events & EPOLLIN) {
                     //only for one client

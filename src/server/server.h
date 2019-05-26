@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <netinet/in.h>
+#include <assert.h>
 #include <fcntl.h>
 #include <pthread.h>
 #include <errno.h>
