@@ -83,45 +83,6 @@ int sock_receive(int fd, char* buff, int n) {
     return n;
 }
 
-// int sock_receive_wrong(int fd, char* buff, int n) {
-//     int header_size = sizeof(int);
-//     int cur = 0, len = 0;
-//     int recv_len = 0;
-//     while (cur < header_size) {
-//         len = recv(fd, buff, 1, 0);
-//         if (len == -1) {
-//             printf("sock_receive() connect failed. len == -1\n");
-//             continue;
-//         } else if (len == 0) {
-//             printf("sock_receive() len == 0");
-//         } else if (len > 0) {
-//             cur += len;
-//         } else {
-//             printf("sock_receive() unknown error.\n");
-//         }
-//     }
-//     recv_len = cur;
-//     int size = *(int *)buff - sizeof(int);
-//     printf("size=%d\n", *(int*)buff);
-//     assert(size > 0);
-//     cur = 0;
-//     while (cur < size) {
-//         len = recv(fd, buff + sizeof(int) + cur, 1, 0);
-//        if (len == -1) {
-//             printf("sock_receive() connect failed. len == -1\n");
-//             continue;
-//         } else if (len == 0) {
-//             printf("sock_receive() len == 0");
-//         } else if (len > 0) {
-//             cur += len;
-//         } else {
-//             printf("sock_receive() unknown error.\n");
-//         } 
-//     }
-//     assert(recv_len + cur == *(int *)buff);
-//     return recv_len + cur;
-// }
-
 void process_packet_to_tun(int fd) {
     struct Msg msg;
     printf("Processing packet to tun: ");
